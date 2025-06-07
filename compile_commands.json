@@ -1,7 +1,0 @@
-[
-  {
-    "directory": "/home/wearr/Documents/Coding/uefi-demo-scene/",
-    "command": "x86_64-w64-mingw32-gcc -Wl,--subsystem,10 -I/usr/include/efi/ -e efi_main",
-    "file": "main.c"
-  }
-]
