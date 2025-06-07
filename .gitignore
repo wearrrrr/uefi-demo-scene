@@ -1,4 +1,4 @@
 .cache/
 image/
 BOOTX64.EFI
-*.o
+main.o
