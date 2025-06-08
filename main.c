@@ -64,7 +64,7 @@ int main(int argc, char **argv)
         if (x <= 0 || x + OKAYU_WIDTH >= screen_width) dx = -dx;
         if (y <= 0 || y + OKAYU_HEIGHT >= screen_height) dy = -dy;
 
-        ST->BootServices->Stall(16667); // about 24fps
+        ST->BootServices->Stall(16667); // about 60fps
     }
 
     ST->RuntimeServices->ResetSystem(EfiResetShutdown, 0, 0, u"");
