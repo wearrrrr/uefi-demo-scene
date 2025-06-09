@@ -10,4 +10,4 @@ all:
 	cp ./BOOTX64.EFI ../UEFI-GPT-image-creator/
 	cp okayu.bmp ../UEFI-GPT-image-creator/
 
-	cd ../UEFI-GPT-image-creator/ && ./write_gpt -ae /EFI/ ./okayu.bmp && ./qemu.sh
+	cd ../UEFI-GPT-image-creator/ && ./write_gpt -ae /EFI/BOOT/ ./okayu.bmp && ./qemu.sh

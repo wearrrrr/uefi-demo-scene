@@ -4,6 +4,9 @@
 
 char *read_esp_file_to_buf(const char *file_path, size_t *out_size) {
     FILE *file = fopen(file_path, "r");
+    if (!file) {
+        return NULL;
+    }
     long int size;
     char *buf;
 
@@ -12,7 +15,7 @@ char *read_esp_file_to_buf(const char *file_path, size_t *out_size) {
     fseek(file, 0, SEEK_SET);
     buf = malloc(size + 1);
     if(!buf) {
-        fprintf(stderr, "unable to allocate memory!\n");
+        printf("unable to allocate memory!\n");
         return NULL;
     }
     fread(buf, size, 1, file);
@@ -48,7 +51,12 @@ int main(int argc, char **argv)
     bmp_fh = malloc(sizeof(BMP_FILEHEADER));
     bmp_ih = malloc(sizeof(BMP_INFOHEADER));
 
-    char *buf = read_esp_file_to_buf("\\EFI\\okayu.bmp", &size);
+    char *buf = read_esp_file_to_buf("\\EFI\\BOT\\okayu.bmp", &size);
+    if (!buf) {
+        printf("Failed to load image! Press any key to shutdown...");
+        while (ST->ConIn->ReadKeyStroke(ST->ConIn, &key) != EFI_SUCCESS);
+        ST->RuntimeServices->ResetSystem(EfiResetShutdown, 0, 0, u"");
+    }
     memcpy(bmp_fh, buf, sizeof(BMP_FILEHEADER));
     memcpy(bmp_ih, buf + sizeof(BMP_FILEHEADER), sizeof(BMP_INFOHEADER));
 
