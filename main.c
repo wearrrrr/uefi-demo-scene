@@ -51,7 +51,7 @@ int main(int argc, char **argv)
     bmp_fh = malloc(sizeof(BMP_FILEHEADER));
     bmp_ih = malloc(sizeof(BMP_INFOHEADER));
 
-    char *buf = read_esp_file_to_buf("\\EFI\\BOT\\okayu.bmp", &size);
+    char *buf = read_esp_file_to_buf("\\EFI\\BOOT\\okayu.bmp", &size);
     if (!buf) {
         printf("Failed to load image! Press any key to shutdown...");
         while (ST->ConIn->ReadKeyStroke(ST->ConIn, &key) != EFI_SUCCESS);
