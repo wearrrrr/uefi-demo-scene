@@ -2,6 +2,8 @@
 #include "uefi/uefi.h"
 #include "bmp.h"
 
+#define CLEAR_MARGIN 2
+
 char *read_esp_file_to_buf(const char *file_path, size_t *out_size) {
     FILE *file = fopen(file_path, "r");
     if (!file) {
@@ -84,37 +86,44 @@ int main(int argc, char **argv)
         if (ST->ConIn->ReadKeyStroke(ST->ConIn, &key) == EFI_SUCCESS)
             break;
 
-        uint32_t erase_w = width;
-        uint32_t erase_h = height;
+        int32_t clear_x = prev_x - CLEAR_MARGIN;
+        int32_t clear_y = prev_y - CLEAR_MARGIN;
+        int32_t clear_w = width + 2 * CLEAR_MARGIN;
+        int32_t clear_h = height + 2 * CLEAR_MARGIN;
 
-        if (prev_x + erase_w > screen_width)
-            erase_w = screen_width - prev_x;
-
-        if (prev_y + erase_h > screen_height)
-            erase_h = screen_height - prev_y;
-
-        for (uint32_t row = 0; row < erase_h; row++) {
-            uint32_t fb_y = prev_y + row;
-            if (fb_y >= screen_height) continue;
-
-            uint32_t *row_ptr = fb + fb_y * stride + prev_x;
-            memset(row_ptr, 0, erase_w * sizeof(uint32_t));
-        }
-
-        for (uint32_t row = 0; row < width; row++) {
-            int fb_y = y + (int)row;
+        for (int32_t row = 0; row < clear_h; row++) {
+            int32_t fb_y = clear_y + row;
             if (fb_y < 0 || fb_y >= screen_height)
                 continue;
 
-            for (uint32_t col = 0; col < height; col++) {
+            int32_t fb_x = clear_x;
+            int32_t clamped_w = clear_w;
+
+            if (fb_x < 0) {
+                clamped_w += fb_x;
+                fb_x = 0;
+            }
+            if (fb_x >= screen_width || clamped_w <= 0) continue;
+
+            uint32_t *row_ptr = fb + fb_y * stride + fb_x;
+            for (int32_t col = 0; col < clamped_w; col++) {
+                row_ptr[col] = 0;
+            }
+        }
+
+        for (uint32_t row = 0; row < height; row++) {
+            int fb_y = y + (int)row;
+            if (fb_y < 0 || fb_y >= (int)screen_height)
+                continue;
+
+            for (uint32_t col = 0; col < width; col++) {
                 int fb_x = x + (int)col;
-                if (fb_x < 0 || fb_x >= screen_width)
+                if (fb_x < 0 || fb_x >= (int)screen_width)
                     continue;
 
                 fb[fb_y * stride + fb_x] = image[row * width + col];
             }
         }
-
         prev_x = x;
         prev_y = y;
         x += dx;
