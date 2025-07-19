@@ -72,7 +72,7 @@ int main(int argc, char **argv)
     int height = bmp_ih->height;
     int row_padded = (width * 3 + 3) & (~3);
     uint8_t *pixel_data = (uint8_t*)(buf + bmp_fh->imageDataOffset);
-    int *image = malloc(width * height * 3);
+    uint32_t *image = malloc(width * height * 3);
     for (int y = 0; y < height; y++) {
         BMP_IMAGE *row = (BMP_IMAGE *)(pixel_data + (height - 1 - y) * row_padded);
         for (int x = 0; x < width; x++) {
@@ -81,6 +81,15 @@ int main(int argc, char **argv)
         }
     }
     free(buf);
+
+    #define BLT_DELTA_TIGHTLY_PACKED 0
+
+    efi_gop_pixel_bitmask_t black = {
+        .BlueMask = 0,
+        .GreenMask = 0,
+        .RedMask = 0,
+        .ReservedMask = 0
+    };
 
     while (true) {
         if (ST->ConIn->ReadKeyStroke(ST->ConIn, &key) == EFI_SUCCESS)
@@ -91,39 +100,41 @@ int main(int argc, char **argv)
         int32_t clear_w = width + 2 * CLEAR_MARGIN;
         int32_t clear_h = height + 2 * CLEAR_MARGIN;
 
-        for (int32_t row = 0; row < clear_h; row++) {
-            int32_t fb_y = clear_y + row;
-            if (fb_y < 0 || fb_y >= screen_height)
-                continue;
-
-            int32_t fb_x = clear_x;
-            int32_t clamped_w = clear_w;
-
-            if (fb_x < 0) {
-                clamped_w += fb_x;
-                fb_x = 0;
-            }
-            if (fb_x >= screen_width || clamped_w <= 0) continue;
-
-            uint32_t *row_ptr = fb + fb_y * stride + fb_x;
-            for (int32_t col = 0; col < clamped_w; col++) {
-                row_ptr[col] = 0;
-            }
+        if (clear_x < 0) {
+            clear_w += clear_x;
+            clear_x = 0;
+        }
+        if (clear_y < 0) {
+            clear_h += clear_y;
+            clear_y = 0;
+        }
+        if (clear_x + clear_w > screen_width) {
+            clear_w = screen_width - clear_x;
+        }
+        if (clear_y + clear_h > screen_height) {
+            clear_h = screen_height - clear_y;
         }
 
-        for (uint32_t row = 0; row < height; row++) {
-            int fb_y = y + (int)row;
-            if (fb_y < 0 || fb_y >= (int)screen_height)
-                continue;
+        gop->Blt(
+            gop,
+            (uint32_t*)&black,
+            EfiBltVideoFill,
+            0, 0,
+            clear_x, clear_y,
+            clear_w, clear_h,
+            BLT_DELTA_TIGHTLY_PACKED
+        );
 
-            for (uint32_t col = 0; col < width; col++) {
-                int fb_x = x + (int)col;
-                if (fb_x < 0 || fb_x >= (int)screen_width)
-                    continue;
 
-                fb[fb_y * stride + fb_x] = image[row * width + col];
-            }
-        }
+        efi_status_t status = gop->Blt(
+            gop,
+            image,
+            EfiBltBufferToVideo,
+            0, 0,
+            x, y,
+            width, height,
+            BLT_DELTA_TIGHTLY_PACKED
+        );
         prev_x = x;
         prev_y = y;
         x += dx;
