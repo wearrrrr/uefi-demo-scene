@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include "uefi/uefi.h"
 #include "bmp.h"
+#include "font8x8.h"
+
 
 #define CLEAR_MARGIN 2
 
@@ -27,9 +29,39 @@ char *read_esp_file_to_buf(const char *file_path, size_t *out_size) {
     return buf;
 };
 
-int main(int argc, char **argv)
-{
+uint32_t *fb;
+uint32_t fb_width, fb_height;
+uint32_t fb_stride;
+
+static inline void draw_pixel(int x, int y, uint32_t color) {
+    if (x < 0 || x >= (int)fb_width || y < 0 || y >= (int)fb_height)
+        return;
+    fb[y * fb_stride + x] = color;
+}
+
+void draw_char(int x, int y, char c, uint32_t fg_color, uint32_t bg_color) {
+    if ((unsigned char)c >= 128)
+        return;
+
+    for (int row = 0; row < 8; row++) {
+        uint8_t bits = font8x8_basic[(unsigned char)c][row];
+        for (int col = 0; col < 8; col++) {
+            uint32_t color = (bits & (1 << col)) ? fg_color : bg_color;
+            draw_pixel(x + col, y + row, color);
+        }
+    }
+}
+
+void draw_string(int x, int y, const char *str) {
+    while (*str) {
+        draw_char(x, y, *str++, 0xFFFFFFFF, 0x00000000);
+        x += 8;
+    }
+}
+
+int main(int argc, char **argv) {
     ST->ConOut->ClearScreen(ST->ConOut);
+
     efi_runtime_services_t *RS = ST->RuntimeServices;
 
     efi_guid_t gopGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
@@ -37,10 +69,10 @@ int main(int argc, char **argv)
 
     BS->LocateProtocol(&gopGuid, NULL, (void**)&gop);
 
-    uint32_t *fb = (uint32_t*)gop->Mode->FrameBufferBase;
-    uint32_t screen_width = gop->Mode->Information->HorizontalResolution;
-    uint32_t screen_height = gop->Mode->Information->VerticalResolution;
-    uint32_t stride = gop->Mode->Information->PixelsPerScanLine;
+    fb = (uint32_t*)gop->Mode->FrameBufferBase;
+    fb_width = gop->Mode->Information->HorizontalResolution;
+    fb_height = gop->Mode->Information->VerticalResolution;
+    fb_stride = gop->Mode->Information->PixelsPerScanLine;
     efi_input_key_t key;
 
     int32_t x = 0, y = 0, dx = 4, dy = 3;
@@ -95,6 +127,8 @@ int main(int argc, char **argv)
         if (ST->ConIn->ReadKeyStroke(ST->ConIn, &key) == EFI_SUCCESS)
             break;
 
+        uint64_t start_cycles = __rdtsc();
+
         int32_t clear_x = prev_x - CLEAR_MARGIN;
         int32_t clear_y = prev_y - CLEAR_MARGIN;
         int32_t clear_w = width + 2 * CLEAR_MARGIN;
@@ -108,11 +142,11 @@ int main(int argc, char **argv)
             clear_h += clear_y;
             clear_y = 0;
         }
-        if (clear_x + clear_w > screen_width) {
-            clear_w = screen_width - clear_x;
+        if (clear_x + clear_w > fb_width) {
+            clear_w = fb_width - clear_x;
         }
-        if (clear_y + clear_h > screen_height) {
-            clear_h = screen_height - clear_y;
+        if (clear_y + clear_h > fb_height) {
+            clear_h = fb_height - clear_y;
         }
 
         gop->Blt(
@@ -140,8 +174,15 @@ int main(int argc, char **argv)
         x += dx;
         y += dy;
 
-        if (x <= 0 || x + width >= screen_width) dx = -dx;
-        if (y <= 0 || y + height >= screen_height) dy = -dy;
+        if (x <= 0 || x + width >= fb_width) dx = -dx;
+        if (y <= 0 || y + height >= fb_height) dy = -dy;
+
+        char buf[64];
+        uint64_t end_cycles = __rdtsc();
+        uint64_t frame_cycles = end_cycles - start_cycles;
+        int len = snprintf(buf, sizeof(buf), "Cycles / Frame: %lu", frame_cycles);
+
+        draw_string(10, 10, buf);
 
         ST->BootServices->Stall(16667); // about 60fps
     }
